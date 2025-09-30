@@ -1,0 +1,11 @@
+package com.delicias.batch.repository;
+
+import com.delicias.batch.models.OrderView;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface OrderViewRepository extends JpaRepository<OrderView, Integer> {
+
+}
+

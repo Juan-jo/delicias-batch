@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: deliciasbatch
+#  main:
+    #banner-mode: off
+    #allow-bean-definition-overriding: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/delivery_dev
+    username: postgres
+    password: password
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: true
+    show-sql: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        #format_sql: true
+        jdbc:
+          time_zone: UTC
+
+delicias:
+  tasks:
+    cron: "0/5 * * * * *" # Cada 5s
