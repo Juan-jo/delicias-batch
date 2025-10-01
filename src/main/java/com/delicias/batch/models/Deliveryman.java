@@ -32,7 +32,7 @@ public class Deliveryman {
     DeliverStatus status;
 
     @Column(name = "deliverer_id")
-    private UUID deliveryUID;
+    private UUID deliveryUUID;
 
 
     @Column(name = "last_position", columnDefinition = "GEOGRAPHY(Point, 4326)")

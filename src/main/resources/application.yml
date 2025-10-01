@@ -25,3 +25,9 @@ spring:
 delicias:
   tasks:
     cron: "0/5 * * * * *" # Cada 5s
+  supabase:
+    domain: 'http://192.168.101.100:8000'
+    url: 'http://localhost:8000'
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE'
+    bucket: 'delicias'
+    logo: ${delicias.supabase.domain}/storage/v1/object/public/delicias/dl.png

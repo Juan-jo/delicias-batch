@@ -4,7 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication
+
+@SpringBootApplication(scanBasePackages = {"com.delicias.batch", "com.delicias.soft.services"})
 @EnableScheduling
 public class DeliciasbatchApplication {
 

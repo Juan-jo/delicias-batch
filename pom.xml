@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.delicias.soft</groupId>
         <artifactId>delicias-parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.2-SNAPSHOT</version>
     </parent>
 
     <groupId>com.delicias.soft.services</groupId>
@@ -82,6 +82,15 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+
+        <dependency>
+            <groupId>com.delicias.soft.services</groupId>
+            <artifactId>delicias-core</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+
+
+
     </dependencies>
 
 

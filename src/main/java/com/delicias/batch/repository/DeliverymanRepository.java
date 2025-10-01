@@ -17,7 +17,7 @@ public interface DeliverymanRepository extends JpaRepository<Deliveryman, Intege
             SELECT 		*,
             			ST_Distance(d.last_position ,ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography) AS distance_meters
             FROM        deliverers d
-            WHERE       ST_DWithin(last_position::geography, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,:distance)
+            WHERE       ST_DWithin(last_position::geography, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography, :distance)
                         AND
                         d.status = 'AVAILABLE'::public.deliver_status_type
             ORDER BY    distance_meters ASC;
