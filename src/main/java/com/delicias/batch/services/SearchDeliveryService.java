@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 @Slf4j
 @AllArgsConstructor
@@ -34,69 +36,72 @@ public class SearchDeliveryService {
     private final JdbcTemplate jdbcTemplate;
     private final Integer _15km = 15000;
 
-    private final String sqlUpdatePosOrderStatus = "UPDATE pos_order SET status = ? WHERE id = ?";
-
-
-    public RespSearchDeliveryDTO whenStatusIsAvailable(OrderView order) {
-
-        RespSearchDeliveryDTO response = new RespSearchDeliveryDTO(false, null);
-
-        List<Deliveryman> delivers = getDeliversAvailable(order);
-
-        for (Deliveryman deliver: delivers) {
-
-            log.warn("Evaluate With Delivery {} Of Order: {} ", deliver.getDeliveryUUID(), order.getId());
-
-            try {
-                assignOderWhenAvailable(order, deliver);
-                response = new RespSearchDeliveryDTO(true, deliver);
-                break;
-            }
-            catch (DuplicateAssignOrderException e) {
-                response = new RespSearchDeliveryDTO(true, null);
-                break;
-            }
-            catch (SupabaseOrderDeliveryIdAreNotExistsException | RollbackTransactionException e) {
-                log.info("Continue Evaluate the next Delivery. {}", e.getMessage());
-            }
-        }
-
-        return response;
-    }
-
-
-    public RespSearchDeliveryDTO whenStatusIsAssignedOrders(OrderView order) {
-
-        RespSearchDeliveryDTO response = new RespSearchDeliveryDTO(false, null);
-
-        List<Deliveryman> delivers = getDeliverersWithAssignedOrders(order);
-
-        for (Deliveryman deliver: delivers) {
-
-            try {
-
-                log.warn("Evaluate With Delivery {} Of Order: {} ", deliver.getDeliveryUUID(), order.getId());
-
-                assignOrderWhenAssignedOrder(order, deliver);
-                response = new RespSearchDeliveryDTO(true, deliver);
-                break;
-            }
-            catch (DuplicateAssignOrderException e) {
-                response = new RespSearchDeliveryDTO(true, null);
-                break;
-            }
-            catch (SupabaseOrderDeliveryIdAreNotExistsException | RollbackTransactionException e) {
-                log.info("Continue Evaluate the next Delivery. {}", e.getMessage());
-            }
-        }
-
-        return response;
-    }
+    private final String sqlUpdatePosOrderStatus = "UPDATE pos_order SET status = ?::pos_order_status WHERE id = ?";
 
     @Transactional
+    public RespSearchDeliveryDTO assign(OrderView order) {
+
+        RespSearchDeliveryDTO response = tryAssignDeliveryWhenStatusIsAvailable(order);
+
+        if (!response.found()) {
+            response = tryAssignDeliveryWhenStatusIsAssignedOrders(order);
+        }
+
+        return response;
+    }
+
+
+    private RespSearchDeliveryDTO tryAssignOrder(
+            OrderView order,
+            Supplier<List<Deliveryman>> deliverymenSupplier,
+            BiConsumer<OrderView, Deliveryman> assignFunction) {
+
+        RespSearchDeliveryDTO response = new RespSearchDeliveryDTO(false, null);
+
+        List<Deliveryman> deliverymen = deliverymenSupplier.get();
+
+        for (Deliveryman deliver : deliverymen) {
+            log.warn("Evaluate With Delivery {} Of Order: {}", deliver.getDeliveryUUID(), order.getId());
+
+            try {
+                assignFunction.accept(order, deliver);
+                response = new RespSearchDeliveryDTO(true, deliver);
+                break;
+            } catch (DuplicateAssignOrderException e) {
+                response = new RespSearchDeliveryDTO(true, null);
+                break;
+            } catch (SupabaseOrderDeliveryIdAreNotExistsException | RollbackTransactionException e) {
+                log.info("Continue Evaluate the next Delivery. {}", e.getMessage());
+            }
+        }
+
+        return response;
+    }
+
+
+    private RespSearchDeliveryDTO tryAssignDeliveryWhenStatusIsAvailable(OrderView order) {
+        return tryAssignOrder(
+                order,
+                () -> getDeliversAvailable(order),
+                this::assignOderWhenAvailable
+        );
+    }
+
+    private RespSearchDeliveryDTO tryAssignDeliveryWhenStatusIsAssignedOrders(OrderView order) {
+        return tryAssignOrder(
+                order,
+                () -> getDeliverersWithAssignedOrders(order),
+                this::assignOrderWhenAssignedOrder
+        );
+    }
+
+
+
     private void assignOderWhenAvailable(OrderView orderDTO, Deliveryman deliver) {
 
         try {
+
+            log.info("Trying to assign available {}", deliver.getDeliveryUUID());
 
             SupabaseDelivererDTO supabaseDelivererDTO = coreSupabaseDelivererService.getDeliverer(deliver.getDeliveryUUID());
 
@@ -119,24 +124,29 @@ public class SearchDeliveryService {
 
             }, () -> {
 
-                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("*2 - Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
+                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
 
             });
 
         }
         catch (DuplicateKeyException d)  {
-            throw new DuplicateAssignOrderException("*3 - Duplicate insert order");
+            throw new DuplicateAssignOrderException("Duplicate insert order");
         }
         catch (DataAccessException e) {
 
-            throw new RollbackTransactionException(String.format("*3 - Rollback assign deliverer %s", deliver.getDeliveryUUID()));
+            throw new RollbackTransactionException(String.format("Rollback assign deliverer %s", deliver.getDeliveryUUID()));
+        } catch (Exception e) {
+            log.info("Other Error: {}", e.getMessage());
+            throw new RollbackTransactionException(e.getMessage());
         }
     }
 
-    @Transactional
+
     private void assignOrderWhenAssignedOrder(OrderView orderDTO, Deliveryman deliver) {
 
         try {
+
+            log.info("Trying to assign when assigned order {}", deliver.getDeliveryUUID());
 
             SupabaseDelivererDTO supabaseDelivererDTO = coreSupabaseDelivererService.getDeliverer(deliver.getDeliveryUUID());
 
@@ -158,7 +168,7 @@ public class SearchDeliveryService {
 
             }, () -> {
 
-                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("*2 - Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
+                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
             });
 
         }

@@ -20,7 +20,9 @@ public interface DeliverymanRepository extends JpaRepository<Deliveryman, Intege
             WHERE       ST_DWithin(last_position::geography, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography, :distance)
                         AND
                         d.status = 'AVAILABLE'::public.deliver_status_type
-            ORDER BY    distance_meters ASC;
+            ORDER BY    distance_meters ASC
+            LIMIT       4
+            FOR UPDATE;
             
             """,nativeQuery = true)
     List<Deliveryman> findAvailable(@Param("latitude") double latitude,
@@ -40,7 +42,9 @@ public interface DeliverymanRepository extends JpaRepository<Deliveryman, Intege
                                 AND
                                 ST_Distance(d.last_position , d.destination_position) +
                         		ST_Distance(d.destination_position , ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography) is not null
-                       ORDER BY	total_meters asc;
+                       ORDER BY	total_meters asc
+                       LIMIT       4
+                       FOR UPDATE;
         """, nativeQuery = true)
     List<Deliveryman> findWithAssignedOrders(
             @Param("latitude") double restaurantLatitude,
