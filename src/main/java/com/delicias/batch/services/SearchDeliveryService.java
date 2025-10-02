@@ -7,9 +7,12 @@ import com.delicias.batch.models.Deliveryman;
 import com.delicias.batch.models.OrderView;
 import com.delicias.batch.repository.DeliverymanRepository;
 import com.delicias.soft.services.core.common.OrderStatus;
+import com.delicias.soft.services.core.supabase.deliverer.dto.SupabaseDelivererDTO;
+import com.delicias.soft.services.core.supabase.deliverer.service.CoreSupabaseDelivererService;
 import com.delicias.soft.services.core.supabase.exception.SupabaseOrderDeliveryIdAreNotExistsException;
 import com.delicias.soft.services.core.supabase.order.service.CoreSupabaseOrderService;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,12 +20,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
+@Slf4j
 @AllArgsConstructor
 @Service
 public class SearchDeliveryService {
 
     private final CoreSupabaseOrderService coreSupabaseOrderService;
+    private final CoreSupabaseDelivererService coreSupabaseDelivererService;
+
     private final DeliverymanRepository deliverymanRepository;
     private final JdbcTemplate jdbcTemplate;
     private final Integer _15km = 15000;
@@ -38,6 +45,8 @@ public class SearchDeliveryService {
 
         for (Deliveryman deliver: delivers) {
 
+            log.warn("Evaluate With Delivery {} Of Order: {} ", deliver.getDeliveryUUID(), order.getId());
+
             try {
                 assignOderWhenAvailable(order, deliver);
                 response = new RespSearchDeliveryDTO(true, deliver);
@@ -47,8 +56,8 @@ public class SearchDeliveryService {
                 response = new RespSearchDeliveryDTO(true, null);
                 break;
             }
-            catch (RollbackTransactionException e) {
-                System.err.println("Delivery are not available: " + e.getMessage());
+            catch (SupabaseOrderDeliveryIdAreNotExistsException | RollbackTransactionException e) {
+                log.info("Continue Evaluate the next Delivery. {}", e.getMessage());
             }
         }
 
@@ -56,7 +65,9 @@ public class SearchDeliveryService {
     }
 
 
-    public void whenStatusIsAssignedOrders(OrderView order) {
+    public RespSearchDeliveryDTO whenStatusIsAssignedOrders(OrderView order) {
+
+        RespSearchDeliveryDTO response = new RespSearchDeliveryDTO(false, null);
 
         List<Deliveryman> delivers = getDeliverersWithAssignedOrders(order);
 
@@ -64,16 +75,22 @@ public class SearchDeliveryService {
 
             try {
 
+                log.warn("Evaluate With Delivery {} Of Order: {} ", deliver.getDeliveryUUID(), order.getId());
+
                 assignOrderWhenAssignedOrder(order, deliver);
+                response = new RespSearchDeliveryDTO(true, deliver);
                 break;
             }
             catch (DuplicateAssignOrderException e) {
+                response = new RespSearchDeliveryDTO(true, null);
                 break;
             }
-            catch (RollbackTransactionException e) {
-                System.err.println("Delivery are not available: " + e.getMessage());
+            catch (SupabaseOrderDeliveryIdAreNotExistsException | RollbackTransactionException e) {
+                log.info("Continue Evaluate the next Delivery. {}", e.getMessage());
             }
         }
+
+        return response;
     }
 
     @Transactional
@@ -81,33 +98,38 @@ public class SearchDeliveryService {
 
         try {
 
-            coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
+            SupabaseDelivererDTO supabaseDelivererDTO = coreSupabaseDelivererService.getDeliverer(deliver.getDeliveryUUID());
 
-            jdbcTemplate.execute(String.format(
-                    "SELECT public.assign_order_when_available(%s, '%s'::uuid, %s);",
-                    deliver.getId(),
-                    deliver.getDeliveryUUID(),
-                    orderDTO.getId()
-            ));
+            Optional.ofNullable(supabaseDelivererDTO).ifPresentOrElse(supabaseDeliver -> {
 
-            jdbcTemplate.update(
-                    sqlUpdatePosOrderStatus,
-                    OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
-                    orderDTO.getId()
-            );
+                coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
 
-            System.out.println("\uD83D\uDE00 Assigned Delivery Order: " + orderDTO.getId());
+                jdbcTemplate.execute(String.format(
+                        "SELECT public.assign_order_when_available(%s, '%s'::uuid, %s);",
+                        deliver.getId(),
+                        deliver.getDeliveryUUID(),
+                        orderDTO.getId()
+                ));
+
+                jdbcTemplate.update(
+                        sqlUpdatePosOrderStatus,
+                        OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
+                        orderDTO.getId()
+                );
+
+            }, () -> {
+
+                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("*2 - Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
+
+            });
+
         }
         catch (DuplicateKeyException d)  {
-            throw new DuplicateAssignOrderException("Duplicate insert order");
-        }
-        catch (SupabaseOrderDeliveryIdAreNotExistsException e) {
-            System.err.println("Error In Supabase Deliveres: " + e.getMessage());
-            throw new RollbackTransactionException(String.format("Rollback assign deliverer %s", deliver.getDeliveryUUID()));
+            throw new DuplicateAssignOrderException("*3 - Duplicate insert order");
         }
         catch (DataAccessException e) {
 
-            throw new RollbackTransactionException(String.format("Rollback assign deliverer %s", deliver.getDeliveryUUID()));
+            throw new RollbackTransactionException(String.format("*3 - Rollback assign deliverer %s", deliver.getDeliveryUUID()));
         }
     }
 
@@ -116,28 +138,32 @@ public class SearchDeliveryService {
 
         try {
 
-            coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
+            SupabaseDelivererDTO supabaseDelivererDTO = coreSupabaseDelivererService.getDeliverer(deliver.getDeliveryUUID());
 
-            jdbcTemplate.execute(String.format(
-                    "SELECT public.assign_order_when_delivery_assigned_orders('%s'::uuid, %s);",
-                    deliver.getDeliveryUUID(),
-                    orderDTO.getId()
-            ));
+            Optional.ofNullable(supabaseDelivererDTO).ifPresentOrElse(supabaseDeliver -> {
 
-            jdbcTemplate.update(
-                    sqlUpdatePosOrderStatus,
-                    OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
-                    orderDTO.getId()
-            );
+                coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
 
-            System.out.println("\uD83D\uDE00 Assigned Delivery Order: " + orderDTO.getId());
+                jdbcTemplate.execute(String.format(
+                        "SELECT public.assign_order_when_delivery_assigned_orders('%s'::uuid, %s);",
+                        deliver.getDeliveryUUID(),
+                        orderDTO.getId()
+                ));
+
+                jdbcTemplate.update(
+                        sqlUpdatePosOrderStatus,
+                        OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
+                        orderDTO.getId()
+                );
+
+            }, () -> {
+
+                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("*2 - Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
+            });
 
         }
         catch (DuplicateKeyException d)  {
             throw new DuplicateAssignOrderException("Duplicate insert order");
-        }
-        catch (SupabaseOrderDeliveryIdAreNotExistsException e) {
-            throw new RollbackTransactionException(String.format("Error In Supabase Deliveres: %s", e.getMessage()));
         }
         catch (DataAccessException e) {
 

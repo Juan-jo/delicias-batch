@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @AllArgsConstructor
@@ -33,7 +34,16 @@ public class SearchDeliveryTask {
             RespSearchDeliveryDTO respSearchDeliveryDTO = searchDeliveryService.whenStatusIsAvailable(order);
 
             if(!respSearchDeliveryDTO.found()) {
-                searchDeliveryService.whenStatusIsAssignedOrders(order);
+                respSearchDeliveryDTO = searchDeliveryService.whenStatusIsAssignedOrders(order);
+            }
+
+            if(respSearchDeliveryDTO.found()) {
+
+                Optional.ofNullable(respSearchDeliveryDTO.deliveryman()).ifPresent(val -> {
+
+                    log.info("Send Push Notification.");
+                });
+
             }
 
         }
