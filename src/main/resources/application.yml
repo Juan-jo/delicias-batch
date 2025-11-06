@@ -27,7 +27,9 @@ delicias:
     cron: "0/5 * * * * *" # Cada 5s
   supabase:
     domain: 'http://192.168.101.100:8000'
-    url: 'http://localhost:8000'
-    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE'
+    url: 'https://dooexrpqhljvevkhqbjr.supabase.co'
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvb2V4cnBxaGxqdmV2a2hxYmpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4MjI5MTEsImV4cCI6MjA3NzM5ODkxMX0.fhAKkxbiyf2ElTtHHCS75swvgVG5S1FlIb1eLishg-Y'
     bucket: 'delicias'
     logo: ${delicias.supabase.domain}/storage/v1/object/public/delicias/dl.png
+  mapbox:
+    token: 'sk.eyJ1IjoianVhbmpvc2VobSIsImEiOiJjbWgzdnhuZG0xaWh3dGNwcnVsM2E0cHRmIn0.-i_ngfFpCSOEXsl3duqHhg'
