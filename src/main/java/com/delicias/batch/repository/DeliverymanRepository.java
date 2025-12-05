@@ -14,16 +14,14 @@ public interface DeliverymanRepository extends JpaRepository<Deliveryman, Intege
 
 
     @Query(value = """
-            SELECT 		*,
-            			ST_Distance(d.last_position ,ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography) AS distance_meters
-            FROM        deliverers d
-            WHERE       ST_DWithin(last_position::geography, ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography, :distance)
-                        AND
-                        d.status = 'AVAILABLE'::public.deliver_status_type
-            ORDER BY    distance_meters ASC
-            LIMIT       4
-            FOR UPDATE;
-            
+            SELECT      *,
+                        ST_Distance(last_position,ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography) AS distance_meters
+            	FROM    deliverers
+            	WHERE   status = 'AVAILABLE'::public.deliver_status_type
+            	ORDER BY
+            	        last_position <-> ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography
+            	LIMIT   1
+            	FOR UPDATE;
             """,nativeQuery = true)
     List<Deliveryman> findAvailable(@Param("latitude") double latitude,
                                     @Param("longitude") double longitude,

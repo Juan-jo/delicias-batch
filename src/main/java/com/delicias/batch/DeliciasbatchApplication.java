@@ -19,6 +19,7 @@ public class DeliciasbatchApplication {
 
 
     @Bean(destroyMethod = "shutdown")
+    //@Bean(name = "consumerExecutor", destroyMethod = "shutdown")
     public ExecutorService assignmentExecutor() {
         return Executors.newFixedThreadPool(4);
     }

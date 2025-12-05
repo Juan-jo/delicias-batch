@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 @Slf4j
 @AllArgsConstructor
 @Service
-public class SearchDeliveryService {
+public class AssignDeliveryService {
 
     private final CoreSupabaseOrderService coreSupabaseOrderService;
     private final CoreSupabaseDelivererService coreSupabaseDelivererService;
@@ -103,30 +103,20 @@ public class SearchDeliveryService {
 
             log.info("Trying to assign available {}", deliver.getDeliveryUUID());
 
-            SupabaseDelivererDTO supabaseDelivererDTO = coreSupabaseDelivererService.getDeliverer(deliver.getDeliveryUUID());
+            //coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
 
-            Optional.ofNullable(supabaseDelivererDTO).ifPresentOrElse(supabaseDeliver -> {
+            jdbcTemplate.execute(String.format(
+                    "SELECT public.assign_order_when_available(%s, '%s'::uuid, %s);",
+                    deliver.getId(),
+                    deliver.getDeliveryUUID(),
+                    orderDTO.getId()
+            ));
 
-                coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
-
-                jdbcTemplate.execute(String.format(
-                        "SELECT public.assign_order_when_available(%s, '%s'::uuid, %s);",
-                        deliver.getId(),
-                        deliver.getDeliveryUUID(),
-                        orderDTO.getId()
-                ));
-
-                jdbcTemplate.update(
-                        sqlUpdatePosOrderStatus,
-                        OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
-                        orderDTO.getId()
-                );
-
-            }, () -> {
-
-                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
-
-            });
+            jdbcTemplate.update(
+                    sqlUpdatePosOrderStatus,
+                    OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
+                    orderDTO.getId()
+            );
 
         }
         catch (DuplicateKeyException d)  {
@@ -148,34 +138,27 @@ public class SearchDeliveryService {
 
             log.info("Trying to assign when assigned order {}", deliver.getDeliveryUUID());
 
-            SupabaseDelivererDTO supabaseDelivererDTO = coreSupabaseDelivererService.getDeliverer(deliver.getDeliveryUUID());
+            //coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
 
-            Optional.ofNullable(supabaseDelivererDTO).ifPresentOrElse(supabaseDeliver -> {
+            jdbcTemplate.execute(String.format(
+                    "SELECT public.assign_order_when_delivery_assigned_orders('%s'::uuid, %s);",
+                    deliver.getDeliveryUUID(),
+                    orderDTO.getId()
+            ));
 
-                coreSupabaseOrderService.assignDeliveryUUID(orderDTO.getId(), deliver.getDeliveryUUID());
-
-                jdbcTemplate.execute(String.format(
-                        "SELECT public.assign_order_when_delivery_assigned_orders('%s'::uuid, %s);",
-                        deliver.getDeliveryUUID(),
-                        orderDTO.getId()
-                ));
-
-                jdbcTemplate.update(
-                        sqlUpdatePosOrderStatus,
-                        OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
-                        orderDTO.getId()
-                );
-
-            }, () -> {
-
-                throw new SupabaseOrderDeliveryIdAreNotExistsException(String.format("Supabase Delivery Are Not Exists: %s", deliver.getDeliveryUUID()));
-            });
+            jdbcTemplate.update(
+                    sqlUpdatePosOrderStatus,
+                    OrderStatus.DELIVERY_ASSIGNED_ORDER.name(),
+                    orderDTO.getId()
+            );
 
         }
         catch (DuplicateKeyException d)  {
             throw new DuplicateAssignOrderException("Duplicate insert order");
         }
         catch (DataAccessException e) {
+
+            log.error("Rollback assign deliverer {} ----- {}", deliver.getDeliveryUUID(), e.getMessage());
 
             throw new RollbackTransactionException(String.format("Rollback assign deliverer %s ----- %s", deliver.getDeliveryUUID(), e.getMessage()));
         }
